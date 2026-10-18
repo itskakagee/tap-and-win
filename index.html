@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#17122e">
+<meta name="description" content="Play Tap & Win, the quick 30-second tapping challenge. Beat your best score!">
+<title>Tap & Win — 30 Second Challenge</title>
+<style>
+:root{color-scheme:dark;--bg:#100d22;--panel:#211a40;--pink:#ff4fc8;--gold:#ffd45c;--mint:#67f5c1;--text:#fff8ff;--muted:#c7bedf}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text);background:radial-gradient(ellipse at 50% 0%,#38205d 0%,var(--bg) 60%);display:flex;justify-content:center;padding:20px}
+main{width:min(100%,560px)}header{text-align:center;padding:8px 0 18px}h1{font-size:clamp(2.5rem,10vw,4.4rem);line-height:1;margin:12px 0;background:linear-gradient(90deg,#fff,var(--pink),var(--gold));background-clip:text;color:transparent;letter-spacing:-2px}.tag{color:var(--muted);margin:8px 0}
+.panel{background:linear-gradient(145deg,rgba(44,32,78,.96),rgba(27,22,53,.96));border:1px solid #59457c;border-radius:24px;padding:20px;box-shadow:0 20px 70px #0005}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}.stat{background:#130f29;border:1px solid #43345f;border-radius:15px;padding:12px 8px;text-align:center}.stat span{display:block;color:var(--muted);font-size:.8rem}.stat strong{font-size:1.65rem;display:block;margin-top:3px}
+.arena{position:relative;min-height:290px;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:20px;border:1px solid #59457c;background:radial-gradient(circle at center,#34204f,#15102b 72%);margin-bottom:16px}
+#target{border:0;border-radius:50%;width:130px;height:130px;cursor:pointer;background:radial-gradient(circle at 35% 25%,#fff6bb,#ffd45c 34%,#ff8a43 70%,#f64fbb);box-shadow:0 0 0 12px #ffcf5c18,0 0 50px #ff9c4c66,inset 0 -8px 0 #c85b3d55;font-size:3.4rem;transition:transform .08s;touch-action:manipulation;user-select:none}
+#target:active{transform:scale(.92)}#target:disabled{cursor:not-allowed;filter:saturate(.6)}
+.arena-copy{position:absolute;bottom:15px;text-align:center;color:var(--muted);font-size:.9rem;pointer-events:none}
+.controls{display:flex;gap:10px}.btn{border:0;border-radius:14px;padding:14px 18px;font:inherit;font-weight:800;cursor:pointer;flex:1;touch-action:manipulation}.primary{background:linear-gradient(90deg,var(--pink),#a86bff);color:white;box-shadow:0 8px 24px #b047c344}.secondary{background:#352951;color:var(--text);border:1px solid #59457c}.btn:focus-visible,#target:focus-visible{outline:3px solid white;outline-offset:3px}
+#message{text-align:center;min-height:28px;color:var(--mint);font-weight:700;margin:16px 0 0}.ad-slot{margin-top:16px;min-height:72px;border:1px dashed #59457c;border-radius:14px;display:flex;align-items:center;justify-content:center;color:#a99bbf;font-size:.85rem;text-align:center;padding:12px}
+.rules{color:var(--muted);font-size:.92rem;line-height:1.6;padding:6px 4px 0}footer{text-align:center;color:#8f84a9;font-size:.8rem;padding:18px 4px}
+@media(max-width:390px){body{padding:12px}.panel{padding:14px}.arena{min-height:260px}.stats{gap:6px}.stat strong{font-size:1.4rem}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div aria-hidden="true">✨ 🪙 ✨</div>
+  <h1>TAP &amp; WIN</h1>
+  <p class="tag">30 seconds. One target. Can you beat your best?</p>
+</header>
+<section class="panel" aria-label="Tap and Win game">
+  <div class="stats">
+    <div class="stat"><span>TIME LEFT</span><strong id="time">30</strong></div>
+    <div class="stat"><span>SCORE</span><strong id="score">0</strong></div>
+    <div class="stat"><span>BEST</span><strong id="best">0</strong></div>
+  </div>
+  <div class="arena" id="arena">
+    <button id="target" type="button" disabled aria-label="Tap the coin target">🪙</button>
+    <div class="arena-copy" id="hint">Press Start Game to begin</div>
+  </div>
+  <div class="controls">
+    <button class="btn primary" id="start">▶ Start Game</button>
+    <button class="btn secondary" id="reset" type="button">Reset</button>
+  </div>
+  <p id="message" role="status" aria-live="polite">Ready when you are!</p>
+  <div class="ad-slot" aria-label="Advertisement area">Advertisement space — ads can be added after network approval.</div>
+  <div class="rules"><strong>How to play</strong><br>Tap the glowing coin as fast as you can before the 30-second timer runs out. Your best score is saved on this device. No real-money prizes or cash payouts.</div>
+</section>
+<footer>© <span id="year"></span> Tap &amp; Win · Play fair, have fun.</footer>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const target = $('target'), start = $('start'), reset = $('reset');
+  let score = 0, timeLeft = 30, running = false, endAt = 0, timerId = null;
+  let best = 0;
+  try { best = Number(localStorage.getItem('tapWinBest') || 0); } catch (_) {}
+  $('best').textContent = best;
+  $('year').textContent = new Date().getFullYear();
+
+  function paint() {
+    $('score').textContent = score;
+    $('time').textContent = timeLeft;
+    $('best').textContent = best;
+  }
+  function moveTarget() {
+    const arena = $('arena');
+    const maxX = Math.max(0, arena.clientWidth - target.offsetWidth - 24);
+    const maxY = Math.max(0, arena.clientHeight - target.offsetHeight - 48);
+    target.style.position = 'absolute';
+    target.style.left = (12 + Math.random() * maxX) + 'px';
+    target.style.top = (12 + Math.random() * maxY) + 'px';
+  }
+  function finish() {
+    running = false;
+    clearInterval(timerId);
+    timerId = null;
+    target.disabled = true;
+    target.style.position = 'static';
+    target.style.left = '';
+    target.style.top = '';
+    $('hint').textContent = 'Time is up! Press Play Again.';
+    $('message').textContent = `🎉 Great run! You scored ${score} points.`;
+    start.textContent = '↻ Play Again';
+    if (score > best) {
+      best = score;
+      try { localStorage.setItem('tapWinBest', String(best)); } catch (_) {}
+      $('message').textContent += ' New personal best!';
+    }
+    paint();
+  }
+  function tick() {
+    timeLeft = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+    paint();
+    if (timeLeft <= 0) finish();
+  }
+  function begin() {
+    clearInterval(timerId);
+    score = 0; timeLeft = 30; running = true; endAt = Date.now() + 30000;
+    target.disabled = false;
+    $('hint').textContent = 'Keep tapping!';
+    $('message').textContent = 'Go, go, go!';
+    start.textContent = 'Game in progress…';
+    paint(); moveTarget();
+    timerId = setInterval(tick, 100);
+  }
+  target.addEventListener('click', () => {
+    if (!running) return;
+    score++;
+    $('score').textContent = score;
+    $('message').textContent = '✨ +1 point!';
+    moveTarget();
+  });
+  start.addEventListener('click', () => { if (!running) begin(); });
+  reset.addEventListener('click', () => {
+    clearInterval(timerId); timerId = null; running = false;
+    score = 0; timeLeft = 30; target.disabled = true;
+    target.style.position = 'static'; target.style.left = ''; target.style.top = '';
+    start.textContent = '▶ Start Game';
+    $('hint').textContent = 'Press Start Game to begin';
+    $('message').textContent = 'Ready when you are!';
+    paint();
+  });
+  window.addEventListener('resize', () => { if (running) moveTarget(); });
+  paint();
+})();
+</script>
+</body>
+</html>
